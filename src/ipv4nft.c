@@ -43,15 +43,20 @@ static int sb_append(struct strbuf *sb, const char *fmt, ...)
 {
     int len;
     va_list args;
-    char tmp[512], *new_data;
+    char *new_data;
     size_t new_len, new_cap;
 
     va_start(args, fmt);
-    len = vsnprintf(tmp, sizeof(tmp), fmt, args);
+    len = vsnprintf(NULL, 0, fmt, args);
     va_end(args);
 
-    if (len < 0 || (size_t) len >= sizeof(tmp)) {
+    if (len < 0) {
         E("ERROR: vsnprintf(): %s", "failure");
+        return -1;
+    }
+
+    if ((size_t) len > (size_t) -1 - sb->len - 1) {
+        E("ERROR: %s", strerror(ENOMEM));
         return -1;
     }
 
@@ -59,6 +64,10 @@ static int sb_append(struct strbuf *sb, const char *fmt, ...)
     if (new_len + 1 > sb->cap) {
         new_cap = sb->cap ? sb->cap : 4096;
         while (new_len + 1 > new_cap) {
+            if (new_cap > (size_t) -1 / 2) {
+                E("ERROR: %s", strerror(ENOMEM));
+                return -1;
+            }
             new_cap *= 2;
         }
 
@@ -72,7 +81,14 @@ static int sb_append(struct strbuf *sb, const char *fmt, ...)
         sb->cap = new_cap;
     }
 
-    memcpy(sb->data + sb->len, tmp, len + 1);
+    va_start(args, fmt);
+    len = vsnprintf(sb->data + sb->len, sb->cap - sb->len, fmt, args);
+    va_end(args);
+    if (len < 0 || (size_t) len != new_len - sb->len) {
+        E("ERROR: vsnprintf(): %s", "failure");
+        return -1;
+    }
+
     sb->len = new_len;
 
     return 0;
