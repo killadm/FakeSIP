@@ -22,6 +22,8 @@
 
 int fs_signal_setup(void);
 
+int fs_signal_exit_requested(void);
+
 int fs_kill_running(int signal);
 
 #endif /* FS_SIGNALS_H */

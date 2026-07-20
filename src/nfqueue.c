@@ -246,7 +246,7 @@ int fs_nfq_loop(void)
     err_cnt = 0;
     transient_err_logged = 0;
 
-    while (!g_ctx.exit) {
+    while (!fs_signal_exit_requested()) {
         if (err_cnt >= 20) {
             E("too many errors, exiting...");
             ret = -1;

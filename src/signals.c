@@ -28,15 +28,16 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "globvar.h"
 #include "logging.h"
+
+static volatile sig_atomic_t exit_requested = 0;
 
 static void signal_handler(int sig)
 {
     switch (sig) {
         case SIGINT:
         case SIGTERM:
-            g_ctx.exit = 1;
+            exit_requested = 1;
             break;
         default:
             break;
@@ -48,6 +49,8 @@ int fs_signal_setup(void)
 {
     struct sigaction sa;
     int res;
+
+    exit_requested = 0;
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = SIG_IGN;
@@ -79,6 +82,12 @@ int fs_signal_setup(void)
     }
 
     return 0;
+}
+
+
+int fs_signal_exit_requested(void)
+{
+    return exit_requested != 0;
 }
 
 
