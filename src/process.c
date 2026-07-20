@@ -97,6 +97,12 @@ int fs_execute_command(char **argv, int silent, char *input)
             close(pipefd[0]);
         }
 
+        res = setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin", 1);
+        if (res < 0) {
+            E("ERROR: setenv(): PATH: %s", strerror(errno));
+            _exit(EXIT_FAILURE);
+        }
+
         execvp(argv[0], argv);
 
         E("ERROR: execvp(): %s: %s", argv[0], strerror(errno));
