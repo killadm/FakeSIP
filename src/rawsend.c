@@ -292,22 +292,28 @@ close_socket:
 
 int fs_rawsend_setup(void)
 {
-    sockfd = rawsock_setup(AF_PACKET, SOCK_DGRAM, htons(ETH_P_ALL));
-    if (sockfd < 0) {
-        fs_rawsend_cleanup();
-        return -1;
+    if (g_ctx.outbound) {
+        sockfd = rawsock_setup(AF_PACKET, SOCK_DGRAM, htons(ETH_P_ALL));
+        if (sockfd < 0) {
+            fs_rawsend_cleanup();
+            return -1;
+        }
     }
 
-    sock4fd = rawsock_setup(AF_INET, SOCK_RAW, IPPROTO_RAW);
-    if (sock4fd < 0) {
-        fs_rawsend_cleanup();
-        return -1;
+    if (g_ctx.inbound && g_ctx.use_ipv4) {
+        sock4fd = rawsock_setup(AF_INET, SOCK_RAW, IPPROTO_RAW);
+        if (sock4fd < 0) {
+            fs_rawsend_cleanup();
+            return -1;
+        }
     }
 
-    sock6fd = rawsock_setup(AF_INET6, SOCK_RAW, IPPROTO_RAW);
-    if (sock6fd < 0) {
-        fs_rawsend_cleanup();
-        return -1;
+    if (g_ctx.inbound && g_ctx.use_ipv6) {
+        sock6fd = rawsock_setup(AF_INET6, SOCK_RAW, IPPROTO_RAW);
+        if (sock6fd < 0) {
+            fs_rawsend_cleanup();
+            return -1;
+        }
     }
 
     return 0;
@@ -324,11 +330,13 @@ void fs_rawsend_cleanup(void)
     if (sock4fd >= 0) {
         close(sock4fd);
         sock4fd = -1;
+        sock4if = -1;
     }
 
     if (sock6fd >= 0) {
         close(sock6fd);
         sock6fd = -1;
+        sock6if = -1;
     }
 }
 
