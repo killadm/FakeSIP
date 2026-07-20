@@ -416,7 +416,7 @@ int main(int argc, char *argv[])
     res = fs_signal_setup();
     if (res < 0) {
         EE(T(fs_signal_setup));
-        goto cleanup_nfrules;
+        goto cleanup_nfq;
     }
 
     res = setpriority(PRIO_PROCESS, getpid(), -20);
@@ -457,17 +457,15 @@ int main(int argc, char *argv[])
     res = fs_nfq_loop();
     if (res < 0) {
         EE(T(fs_nfq_loop));
-        goto cleanup_nfrules;
+        goto cleanup_nfq;
     }
 
     E("exiting normally...");
     exitcode = EXIT_SUCCESS;
 
-cleanup_nfrules:
-    fs_nfrules_cleanup();
-
 cleanup_nfq:
     fs_nfq_cleanup();
+    fs_nfrules_cleanup();
 
 cleanup_rawsend:
     fs_rawsend_cleanup();
