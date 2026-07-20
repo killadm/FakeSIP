@@ -40,7 +40,7 @@ static int nft_is_working(void)
 
 int fs_nfrules_setup(void)
 {
-    int res;
+    int res, ipv4_done;
 
     if (g_ctx.skipfw) {
         E("Skip firewall rules as requested.");
@@ -54,34 +54,50 @@ int fs_nfrules_setup(void)
     }
 
     if (g_ctx.use_iptables) {
+        ipv4_done = 0;
+
         if (g_ctx.use_ipv4) {
             res = fs_ipt4_setup();
             if (res < 0) {
                 E(T(fs_ipt4_setup));
+                fs_ipt4_cleanup();
                 return -1;
             }
+            ipv4_done = 1;
         }
 
         if (g_ctx.use_ipv6) {
             res = fs_ipt6_setup();
             if (res < 0) {
                 E(T(fs_ipt6_setup));
+                fs_ipt6_cleanup();
+                if (ipv4_done) {
+                    fs_ipt4_cleanup();
+                }
                 return -1;
             }
         }
     } else {
+        ipv4_done = 0;
+
         if (g_ctx.use_ipv4) {
             res = fs_nft4_setup();
             if (res < 0) {
                 E(T(fs_nft4_setup));
+                fs_nft4_cleanup();
                 return -1;
             }
+            ipv4_done = 1;
         }
 
         if (g_ctx.use_ipv6) {
             res = fs_nft6_setup();
             if (res < 0) {
                 E(T(fs_nft6_setup));
+                fs_nft6_cleanup();
+                if (ipv4_done) {
+                    fs_nft4_cleanup();
+                }
                 return -1;
             }
         }
