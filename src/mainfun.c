@@ -66,7 +66,8 @@ static void print_usage(const char *name)
         "  -u <uri>           use specified SIP URI\n"
         "\n"
         "Filter Options:\n"
-        "  -l <file>          load IP/port allow/deny filter rules from <file>\n"
+        "  -l <file>          load IP/port allow/deny filter rules from "
+        "<file>\n"
         "\n"
         "General Options:\n"
         "  -0                 process inbound packets\n"
@@ -101,8 +102,7 @@ static int iface_name_valid(const char *name)
     const unsigned char *p;
 
     for (p = (const unsigned char *) name; *p; p++) {
-        if (!isalnum(*p) && *p != '_' && *p != '-' && *p != '.' &&
-            *p != ':') {
+        if (!isalnum(*p) && *p != '_' && *p != '-' && *p != '.' && *p != ':') {
             return 0;
         }
     }
@@ -238,8 +238,9 @@ int main(int argc, char *argv[])
                 }
 
                 if (!iface_name_valid(optarg)) {
-                    fprintf(stderr, "%s: interface name contains invalid "
-                                    "characters.\n",
+                    fprintf(stderr,
+                            "%s: interface name contains invalid "
+                            "characters.\n",
                             argv[0]);
                     print_usage(argv[0]);
                     goto free_mem;
@@ -255,8 +256,9 @@ int main(int argc, char *argv[])
             case 'l':
                 g_ctx.filterpath = optarg;
                 if (!g_ctx.filterpath[0]) {
-                    fprintf(stderr, "%s: path of filter file cannot be "
-                                    "empty.\n",
+                    fprintf(stderr,
+                            "%s: path of filter file cannot be "
+                            "empty.\n",
                             argv[0]);
                     print_usage(argv[0]);
                     goto free_mem;

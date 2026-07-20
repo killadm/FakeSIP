@@ -194,10 +194,11 @@ static int append_filter_sets(struct strbuf *sb)
 
 static int append_queue_rule(struct strbuf *sb)
 {
-    return sb_append(sb,
-                     "        meta l4proto udp ct packets 1-5 queue num %"
-                     PRIu32 " bypass;\n",
-                     g_ctx.nfqnum);
+    return sb_append(
+        sb,
+        "        meta l4proto udp ct packets 1-5 queue num %" PRIu32
+        " bypass;\n",
+        g_ctx.nfqnum);
 }
 
 
@@ -206,8 +207,8 @@ static int append_filter_chains(struct strbuf *sb)
     int ip_allow;
 
     if (sb_append(sb, "    chain fs_rules {\n") < 0 ||
-        sb_append(sb, "        meta mark and %" PRIu32 " == %" PRIu32
-                      " return;\n",
+        sb_append(sb,
+                  "        meta mark and %" PRIu32 " == %" PRIu32 " return;\n",
                   g_ctx.fwmask, g_ctx.fwmark) < 0) {
         return -1;
     }
@@ -236,9 +237,11 @@ static int append_filter_chains(struct strbuf *sb)
     ip_allow = g_ctx.filter.allow4_cnt || g_ctx.filter.allow6_cnt;
     if (ip_allow) {
         if (g_ctx.filter.allow4_cnt) {
-            if (sb_append(sb, "        ip saddr @fs_allow_ip jump fs_allow;\n") <
+            if (sb_append(sb,
+                          "        ip saddr @fs_allow_ip jump fs_allow;\n") <
                     0 ||
-                sb_append(sb, "        ip daddr @fs_allow_ip jump fs_allow;\n") <
+                sb_append(sb,
+                          "        ip daddr @fs_allow_ip jump fs_allow;\n") <
                     0) {
                 return -1;
             }
@@ -256,10 +259,10 @@ static int append_filter_chains(struct strbuf *sb)
     }
 
     if (g_ctx.filter.allow_ports_cnt) {
-        if (sb_append(sb, "        udp sport @fs_allow_port jump fs_queue;\n") <
-                0 ||
-            sb_append(sb, "        udp dport @fs_allow_port jump fs_queue;\n") <
-                0 ||
+        if (sb_append(
+                sb, "        udp sport @fs_allow_port jump fs_queue;\n") < 0 ||
+            sb_append(
+                sb, "        udp dport @fs_allow_port jump fs_queue;\n") < 0 ||
             sb_append(sb, "        return;\n") < 0) {
             return -1;
         }
@@ -269,8 +272,7 @@ static int append_filter_chains(struct strbuf *sb)
 
     if (sb_append(sb, "    }\n\n") < 0 ||
         sb_append(sb, "    chain fs_queue {\n") < 0 ||
-        append_queue_rule(sb) < 0 ||
-        sb_append(sb, "    }\n") < 0) {
+        append_queue_rule(sb) < 0 || sb_append(sb, "    }\n") < 0) {
         return -1;
     }
 

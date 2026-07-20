@@ -133,40 +133,32 @@ static int ipt4_filter_setup(const char *nfqnum_str)
     char *deny_dst_ip_cmd[] = {"iptables", "-w",        "-t", "mangle",
                                "-A",       "FAKESIP_R", "-d", ipstr,
                                "-j",       "RETURN",    NULL};
-    char *deny_sport_cmd[] = {"iptables", "-w",        "-t",      "mangle",
-                              "-A",       "FAKESIP_R", "-p",      "udp",
-                              "--sport",  portstr,     "-j",      "RETURN",
-                              NULL};
-    char *deny_dport_cmd[] = {"iptables", "-w",        "-t",      "mangle",
-                              "-A",       "FAKESIP_R", "-p",      "udp",
-                              "--dport",  portstr,     "-j",      "RETURN",
-                              NULL};
+    char *deny_sport_cmd[] = {"iptables",  "-w",     "-t",  "mangle",  "-A",
+                              "FAKESIP_R", "-p",     "udp", "--sport", portstr,
+                              "-j",        "RETURN", NULL};
+    char *deny_dport_cmd[] = {"iptables",  "-w",     "-t",  "mangle",  "-A",
+                              "FAKESIP_R", "-p",     "udp", "--dport", portstr,
+                              "-j",        "RETURN", NULL};
     char *allow_src_ip_cmd[] = {"iptables", "-w",        "-t", "mangle",
                                 "-A",       "FAKESIP_R", "-s", ipstr,
                                 "-j",       "FAKESIP_A", NULL};
     char *allow_dst_ip_cmd[] = {"iptables", "-w",        "-t", "mangle",
                                 "-A",       "FAKESIP_R", "-d", ipstr,
                                 "-j",       "FAKESIP_A", NULL};
-    char *return_r_cmd[] = {"iptables", "-w",        "-t", "mangle",
-                            "-A",       "FAKESIP_R", "-j", "RETURN",
-                            NULL};
-    char *jump_a_cmd[] = {"iptables", "-w",        "-t", "mangle",
-                          "-A",       "FAKESIP_R", "-j", "FAKESIP_A",
-                          NULL};
-    char *allow_sport_cmd[] = {"iptables", "-w",        "-t",      "mangle",
-                               "-A",       "FAKESIP_A", "-p",      "udp",
-                               "--sport",  portstr,     "-j",      "FAKESIP_Q",
-                               NULL};
-    char *allow_dport_cmd[] = {"iptables", "-w",        "-t",      "mangle",
-                               "-A",       "FAKESIP_A", "-p",      "udp",
-                               "--dport",  portstr,     "-j",      "FAKESIP_Q",
-                               NULL};
-    char *return_a_cmd[] = {"iptables", "-w",        "-t", "mangle",
-                            "-A",       "FAKESIP_A", "-j", "RETURN",
-                            NULL};
-    char *jump_q_cmd[] = {"iptables", "-w",        "-t", "mangle",
-                          "-A",       "FAKESIP_A", "-j", "FAKESIP_Q",
-                          NULL};
+    char *return_r_cmd[] = {"iptables",  "-w", "-t",     "mangle", "-A",
+                            "FAKESIP_R", "-j", "RETURN", NULL};
+    char *jump_a_cmd[] = {"iptables",  "-w", "-t",        "mangle", "-A",
+                          "FAKESIP_R", "-j", "FAKESIP_A", NULL};
+    char *allow_sport_cmd[] = {
+        "iptables", "-w",    "-t", "mangle",    "-A", "FAKESIP_A", "-p", "udp",
+        "--sport",  portstr, "-j", "FAKESIP_Q", NULL};
+    char *allow_dport_cmd[] = {
+        "iptables", "-w",    "-t", "mangle",    "-A", "FAKESIP_A", "-p", "udp",
+        "--dport",  portstr, "-j", "FAKESIP_Q", NULL};
+    char *return_a_cmd[] = {"iptables",  "-w", "-t",     "mangle", "-A",
+                            "FAKESIP_A", "-j", "RETURN", NULL};
+    char *jump_q_cmd[] = {"iptables",  "-w", "-t",        "mangle", "-A",
+                          "FAKESIP_A", "-j", "FAKESIP_Q", NULL};
 
     if (!fs_filter_has_rules()) {
         return ipt4_add_queue_rule("FAKESIP_R", nfqnum_str);

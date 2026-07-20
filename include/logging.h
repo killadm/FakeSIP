@@ -24,12 +24,11 @@
 #define E(...)     fs_logger(__func__, __FILE__, __LINE__, 0, 1, __VA_ARGS__)
 #define EE(...)    fs_logger(__func__, __FILE__, __LINE__, 1, 1, __VA_ARGS__)
 #define E_RAW(...) fs_logger_raw(__VA_ARGS__)
-#define E_INFO(...)                                             \
-    do {                                                        \
-        if (!g_ctx.silent) {                                    \
-            fs_logger(__func__, __FILE__, __LINE__, 0, 0,       \
-                      __VA_ARGS__);                             \
-        }                                                       \
+#define E_INFO(...)                                                     \
+    do {                                                                \
+        if (!g_ctx.silent) {                                            \
+            fs_logger(__func__, __FILE__, __LINE__, 0, 0, __VA_ARGS__); \
+        }                                                               \
     } while (0)
 
 int fs_logger_setup(void);

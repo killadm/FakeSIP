@@ -576,9 +576,8 @@ int fs_filter_match(const struct sockaddr *saddr, const struct sockaddr *daddr,
     sport = ntohs(sport_be);
     dport = ntohs(dport_be);
 
-    if (match_ip_list(saddr, daddr, g_ctx.filter.deny4,
-                      g_ctx.filter.deny4_cnt, g_ctx.filter.deny6,
-                      g_ctx.filter.deny6_cnt) ||
+    if (match_ip_list(saddr, daddr, g_ctx.filter.deny4, g_ctx.filter.deny4_cnt,
+                      g_ctx.filter.deny6, g_ctx.filter.deny6_cnt) ||
         match_port_list(sport, g_ctx.filter.deny_ports,
                         g_ctx.filter.deny_ports_cnt) ||
         match_port_list(dport, g_ctx.filter.deny_ports,
