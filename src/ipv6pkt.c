@@ -123,7 +123,7 @@ int fs_pkt6_make(uint8_t *buffer, size_t buffer_size, struct sockaddr *saddr,
     memset(udph, 0, sizeof(*udph));
     udph->source = sport_be;
     udph->dest = dport_be;
-    udph->len = udp_payload_size;
+    udph->len = htons(sizeof(*udph) + udp_payload_size);
     udph->check = 0;
 
     if (udp_payload_size) {
