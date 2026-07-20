@@ -20,6 +20,7 @@
 #define _GNU_SOURCE
 #include "mainfun.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -88,6 +89,21 @@ static void print_usage(const char *name)
         "FakeSIP version " VERSION "\n";
 
     fprintf(stderr, usage_fmt, name);
+}
+
+
+static int iface_name_valid(const char *name)
+{
+    const unsigned char *p;
+
+    for (p = (const unsigned char *) name; *p; p++) {
+        if (!isalnum(*p) && *p != '_' && *p != '-' && *p != '.' &&
+            *p != ':') {
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 
@@ -212,6 +228,14 @@ int main(int argc, char *argv[])
 
                 if (strlen(optarg) > IFNAMSIZ - 1) {
                     fprintf(stderr, "%s: interface name is too long.\n",
+                            argv[0]);
+                    print_usage(argv[0]);
+                    goto free_mem;
+                }
+
+                if (!iface_name_valid(optarg)) {
+                    fprintf(stderr, "%s: interface name contains invalid "
+                                    "characters.\n",
                             argv[0]);
                     print_usage(argv[0]);
                     goto free_mem;
