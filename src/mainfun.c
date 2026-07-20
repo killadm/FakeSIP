@@ -34,6 +34,7 @@
 #include <sys/socket.h>
 
 #include "globvar.h"
+#include "filter.h"
 #include "logging.h"
 #include "nfqueue.h"
 #include "nfrules.h"
@@ -63,6 +64,9 @@ static void print_usage(const char *name)
         "Payload Options:\n"
         "  -b <file>          use UDP payload from binary file\n"
         "  -u <uri>           use specified SIP URI\n"
+        "\n"
+        "Filter Options:\n"
+        "  -l <file>          load IP/port allow/deny filter rules from <file>\n"
         "\n"
         "General Options:\n"
         "  -0                 process inbound packets\n"
@@ -140,7 +144,7 @@ int main(int argc, char *argv[])
 
     plinfo_cnt = iface_cnt = 0;
 
-    while ((opt = getopt(argc, argv, "0146ab:dfgi:km:n:r:st:u:w:x:y:z")) !=
+    while ((opt = getopt(argc, argv, "0146ab:dfgi:kl:m:n:r:st:u:w:x:y:z")) !=
            -1) {
         switch (opt) {
             case '0':
@@ -246,6 +250,23 @@ int main(int argc, char *argv[])
 
             case 'k':
                 g_ctx.killproc = 1;
+                break;
+
+            case 'l':
+                g_ctx.filterpath = optarg;
+                if (!g_ctx.filterpath[0]) {
+                    fprintf(stderr, "%s: path of filter file cannot be "
+                                    "empty.\n",
+                            argv[0]);
+                    print_usage(argv[0]);
+                    goto free_mem;
+                }
+                if (strlen(g_ctx.filterpath) > PATH_MAX - 1) {
+                    fprintf(stderr, "%s: path of filter file is too long.\n",
+                            argv[0]);
+                    print_usage(argv[0]);
+                    goto free_mem;
+                }
                 break;
 
             case 'm':
@@ -407,10 +428,16 @@ int main(int argc, char *argv[])
     E("Home page: https://github.com/MikeWang000000/FakeSIP");
     E("");
 
+    res = fs_filter_setup();
+    if (res < 0) {
+        EE(T(fs_filter_setup));
+        goto cleanup_logger;
+    }
+
     res = fs_payload_setup();
     if (res < 0) {
         EE(T(fs_payload_setup));
-        goto cleanup_logger;
+        goto cleanup_filter;
     }
 
     res = fs_srcinfo_setup();
@@ -499,6 +526,9 @@ cleanup_srcinfo:
 
 cleanup_payload:
     fs_payload_cleanup();
+
+cleanup_filter:
+    fs_filter_cleanup();
 
 cleanup_logger:
     fs_logger_cleanup();

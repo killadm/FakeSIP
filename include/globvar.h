@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "filter.h"
 #include "payload.h"
 
 struct fs_context {
@@ -39,6 +40,7 @@ struct fs_context {
     /* -g */ int nohopest;
     /* -i */ const char **iface;
     /* -k */ int killproc;
+    /* -l */ const char *filterpath;
     /* -m */ uint32_t fwmark;
     /* -n */ uint32_t nfqnum;
     /* -r */ int repeat;
@@ -48,6 +50,8 @@ struct fs_context {
     /* -x */ uint32_t fwmask;
     /* -y */ int dynamic_pct;
     /* -z */ int use_iptables;
+
+    struct fs_filter filter;
 };
 
 extern struct fs_context g_ctx;

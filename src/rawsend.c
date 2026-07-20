@@ -34,6 +34,7 @@
 #include <libnetfilter_queue/libnetfilter_queue_udp.h>
 
 #include "globvar.h"
+#include "filter.h"
 #include "ipv4pkt.h"
 #include "ipv6pkt.h"
 #include "logging.h"
@@ -375,6 +376,10 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
     } else {
         E("ERROR: unknown ethertype 0x%04x", ethertype);
         return -1;
+    }
+
+    if (!fs_filter_match(saddr, daddr, udph->source, udph->dest)) {
+        return NF_ACCEPT;
     }
 
     if (!g_ctx.silent) {

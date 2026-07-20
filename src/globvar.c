@@ -37,6 +37,7 @@ struct fs_context g_ctx = {.exit = 0,
                            /* -g */ .nohopest = 0,
                            /* -i */ .iface = NULL,
                            /* -k */ .killproc = 0,
+                           /* -l */ .filterpath = NULL,
                            /* -m */ .fwmark = 0x10000,
                            /* -n */ .nfqnum = 513,
                            /* -r */ .repeat = 2,
@@ -45,4 +46,6 @@ struct fs_context g_ctx = {.exit = 0,
                            /* -w */ .logpath = NULL,
                            /* -x */ .fwmask = 0,
                            /* -y */ .dynamic_pct = 0,
-                           /* -z */ .use_iptables = 0};
+                           /* -z */ .use_iptables = 0,
+
+                           .filter = {0}};

@@ -25,6 +25,9 @@ Payload Options:
   -b <file>          use UDP payload from binary file
   -u <uri>           use specified SIP URI
 
+Filter Options:
+  -l <file>          load IP/port allow/deny filter rules from <file>
+
 General Options:
   -0                 process inbound packets
   -1                 process outbound packets
@@ -47,6 +50,36 @@ Advanced Options:
   -z                 use iptables commands instead of nft
 
 ```
+
+
+## IP/Port Filter
+
+Use `-l <file>` to restrict which UDP packets are disguised by FakeSIP. The
+filter does not block real traffic: packets outside the filter are accepted
+without generating fake SIP packets.
+
+Filter file format:
+
+```
+# action type value
+allow ip 1.2.3.4
+allow ip 1.2.3.0/24
+allow ip 2001:db8::/32
+deny ip 203.0.113.9
+allow port 443
+allow port 5000-6000
+deny port 12345
+```
+
+Rules are loaded once at startup. `deny` rules have the highest priority.
+Source or destination IP/port can match a rule. If any IP allow rules exist, a
+packet must match at least one IP allow rule. If any port allow rules exist, a
+packet must match at least one port allow rule. When both IP and port allow
+rules exist, both conditions must match.
+
+The default nftables path uses sets to skip non-matching packets before
+NFQUEUE. The iptables fallback preserves the same behavior but uses linear
+rules, so nftables is recommended for large rule lists.
 
 
 ## License
