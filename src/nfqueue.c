@@ -30,6 +30,7 @@
 #include <netinet/udp.h>
 #include <sys/socket.h>
 #include <linux/if_packet.h>
+#include <linux/netlink.h>
 #include <linux/netfilter.h>
 #include <linux/netfilter/nfnetlink_queue.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
@@ -185,10 +186,21 @@ int fs_nfq_setup(void)
         opt = 1048576;
         res = setsockopt(fd, SOL_SOCKET, SO_RCVBUFFORCE, &opt, sizeof(opt));
         if (res < 0) {
-            E("ERROR: setsockopt(): SO_RCVBUFFORCE: %s", strerror(errno));
-            goto destroy_queue;
+            E("WARNING: setsockopt(): SO_RCVBUFFORCE: %s", strerror(errno));
+            res = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &opt, sizeof(opt));
+            if (res < 0) {
+                E("WARNING: setsockopt(): SO_RCVBUF: %s", strerror(errno));
+            }
         }
     }
+
+#if defined(SOL_NETLINK) && defined(NETLINK_NO_ENOBUFS)
+    opt = 1;
+    res = setsockopt(fd, SOL_NETLINK, NETLINK_NO_ENOBUFS, &opt, sizeof(opt));
+    if (res < 0) {
+        E("WARNING: setsockopt(): NETLINK_NO_ENOBUFS: %s", strerror(errno));
+    }
+#endif
 
     return 0;
 
@@ -221,7 +233,7 @@ int fs_nfq_loop(void)
 {
     static const size_t buffsize = UINT16_MAX;
 
-    int res, ret, err_cnt;
+    int res, ret, err_cnt, transient_err_logged;
     ssize_t recv_len;
     char *buff;
 
@@ -232,6 +244,7 @@ int fs_nfq_loop(void)
     }
 
     err_cnt = 0;
+    transient_err_logged = 0;
 
     while (!g_ctx.exit) {
         if (err_cnt >= 20) {
@@ -242,16 +255,21 @@ int fs_nfq_loop(void)
 
         recv_len = recv(fd, buff, buffsize, 0);
         if (recv_len < 0) {
-            err_cnt++;
             switch (errno) {
                 case EINTR:
                     continue;
                 case EAGAIN:
                 case ETIMEDOUT:
                 case ENOBUFS:
-                    E("ERROR: recv(): %s", strerror(errno));
+                    if (!transient_err_logged) {
+                        E("WARNING: recv(): %s; suppressing repeated "
+                          "transient errors",
+                          strerror(errno));
+                        transient_err_logged = 1;
+                    }
                     continue;
                 default:
+                    err_cnt++;
                     E("ERROR: recv(): %s", strerror(errno));
                     ret = -1;
                     goto free_buff;
@@ -266,6 +284,7 @@ int fs_nfq_loop(void)
         }
 
         err_cnt = 0;
+        transient_err_logged = 0;
     }
 
     ret = 0;
