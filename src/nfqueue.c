@@ -44,6 +44,9 @@ static int fd = -1;
 static struct nfq_handle *h = NULL;
 static struct nfq_q_handle *qh = NULL;
 
+/* FakeSIP only inspects IP/UDP headers and never modifies queued packets. */
+#define FS_NFQ_COPY_RANGE 128
+
 static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                     struct nfq_data *nfa, void *data)
 {
@@ -160,7 +163,7 @@ int fs_nfq_setup(void)
         goto close_nfq;
     }
 
-    res = nfq_set_mode(qh, NFQNL_COPY_PACKET, 0xffff);
+    res = nfq_set_mode(qh, NFQNL_COPY_PACKET, FS_NFQ_COPY_RANGE);
     if (res < 0) {
         E("ERROR: nfq_set_mode(): NFQNL_COPY_PACKET: %s", strerror(errno));
         goto destroy_queue;
