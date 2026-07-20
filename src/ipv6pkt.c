@@ -39,7 +39,7 @@ int fs_pkt6_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
 {
     struct ip6_hdr *ip6h;
     struct udphdr *udph;
-    int ip6h_len;
+    int ip6h_len, ip6_payload_len, udp_len;
     struct sockaddr_in6 *saddr_in6, *daddr_in6;
 
     saddr_in6 = (struct sockaddr_in6 *) saddr;
@@ -53,6 +53,12 @@ int fs_pkt6_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
     }
 
     ip6h = (struct ip6_hdr *) pkt_data;
+    ip6_payload_len = ntohs(ip6h->ip6_plen);
+
+    if (ip6_payload_len < (int) sizeof(*udph)) {
+        E("ERROR: invalid IPv6 payload length: %d", ip6_payload_len);
+        return -1;
+    }
 
     if (ip6h->ip6_nxt != IPPROTO_UDP) {
         E("ERROR: not a UDP packet (next header %d)", (int) ip6h->ip6_nxt);
@@ -65,6 +71,11 @@ int fs_pkt6_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
     }
 
     udph = (struct udphdr *) ((uint8_t *) pkt_data + ip6h_len);
+    udp_len = ntohs(udph->len);
+    if (udp_len < (int) sizeof(*udph) || udp_len > ip6_payload_len) {
+        E("ERROR: invalid UDP length: %d", udp_len);
+        return -1;
+    }
 
     memset(saddr_in6, 0, sizeof(*saddr_in6));
     saddr_in6->sin6_family = AF_INET6;
@@ -76,7 +87,7 @@ int fs_pkt6_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
 
     *ttl = ip6h->ip6_hlim;
     *udph_ptr = udph;
-    *udp_payload_len = pkt_len - ip6h_len - sizeof(*udph);
+    *udp_payload_len = udp_len - sizeof(*udph);
 
     return 0;
 }

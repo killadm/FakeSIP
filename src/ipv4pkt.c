@@ -39,7 +39,7 @@ int fs_pkt4_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
 {
     struct iphdr *iph;
     struct udphdr *udph;
-    int iph_len;
+    int iph_len, ip_tot_len, udp_len;
     struct sockaddr_in *saddr_in, *daddr_in;
 
     saddr_in = (struct sockaddr_in *) saddr;
@@ -52,9 +52,15 @@ int fs_pkt4_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
 
     iph = (struct iphdr *) pkt_data;
     iph_len = iph->ihl * 4;
+    ip_tot_len = ntohs(iph->tot_len);
 
     if ((size_t) iph_len < sizeof(*iph)) {
         E("ERROR: invalid IP header length: %d", iph_len);
+        return -1;
+    }
+
+    if (ip_tot_len < iph_len + (int) sizeof(*udph)) {
+        E("ERROR: invalid IP total length: %d", ip_tot_len);
         return -1;
     }
 
@@ -69,6 +75,11 @@ int fs_pkt4_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
     }
 
     udph = (struct udphdr *) ((uint8_t *) pkt_data + iph_len);
+    udp_len = ntohs(udph->len);
+    if (udp_len < (int) sizeof(*udph) || udp_len > ip_tot_len - iph_len) {
+        E("ERROR: invalid UDP length: %d", udp_len);
+        return -1;
+    }
 
     memset(saddr_in, 0, sizeof(*saddr_in));
     saddr_in->sin_family = AF_INET;
@@ -80,7 +91,7 @@ int fs_pkt4_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
 
     *ttl = iph->ttl;
     *udph_ptr = udph;
-    *udp_payload_len = pkt_len - iph_len - sizeof(*udph);
+    *udp_payload_len = udp_len - sizeof(*udph);
 
     return 0;
 }
