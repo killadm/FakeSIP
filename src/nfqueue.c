@@ -51,6 +51,7 @@ static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                     struct nfq_data *nfa, void *data)
 {
     uint32_t pkt_id, iifindex, oifindex;
+    uint16_t hw_addrlen;
     int verdict, pkt_len, modified;
     struct nfqnl_msg_packet_hdr *ph;
     unsigned char *pkt_data;
@@ -95,8 +96,12 @@ static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
     /* hwph can be null on PPP interfaces or POSTROUTING packets */
     hwph = nfq_get_packet_hw(nfa);
     if (hwph) {
-        sll.sll_halen = sizeof(hwph->hw_addr);
-        memcpy(sll.sll_addr, hwph->hw_addr, sizeof(hwph->hw_addr));
+        hw_addrlen = ntohs(hwph->hw_addrlen);
+        if (hw_addrlen > sizeof(sll.sll_addr)) {
+            hw_addrlen = sizeof(sll.sll_addr);
+        }
+        sll.sll_halen = hw_addrlen;
+        memcpy(sll.sll_addr, hwph->hw_addr, hw_addrlen);
     } else {
         sll.sll_halen = 0;
         memset(sll.sll_addr, 0, sizeof(sll.sll_addr));
