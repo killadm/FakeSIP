@@ -466,7 +466,6 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
         E_INFO("%s:%u <===FAKE(*)=== %s:%u", dst_ip_str, ntohs(udph->dest),
                src_ip_str, ntohs(udph->source));
 
-
         E_INFO("%s:%u <===UDP=== %s:%u", dst_ip_str, ntohs(udph->dest),
                src_ip_str, ntohs(udph->source));
 
