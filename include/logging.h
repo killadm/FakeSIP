@@ -21,20 +21,23 @@
 #define FS_LOGGING_H
 
 #define T(FUNC)    ("    at " #FUNC "()")
-#define E(...)     fs_logger(__func__, __FILE__, __LINE__, 0, __VA_ARGS__)
-#define EE(...)    fs_logger(__func__, __FILE__, __LINE__, 1, __VA_ARGS__)
+#define E(...)     fs_logger(__func__, __FILE__, __LINE__, 0, 1, __VA_ARGS__)
+#define EE(...)    fs_logger(__func__, __FILE__, __LINE__, 1, 1, __VA_ARGS__)
 #define E_RAW(...) fs_logger_raw(__VA_ARGS__)
-#define E_INFO(...)      \
-    if (!g_ctx.silent) { \
-        E(__VA_ARGS__);  \
-    }
+#define E_INFO(...)                                             \
+    do {                                                        \
+        if (!g_ctx.silent) {                                    \
+            fs_logger(__func__, __FILE__, __LINE__, 0, 0,       \
+                      __VA_ARGS__);                             \
+        }                                                       \
+    } while (0)
 
 int fs_logger_setup(void);
 
 void fs_logger_cleanup(void);
 
 void fs_logger(const char *funcname, const char *filename, unsigned long line,
-               int end, const char *fmt, ...);
+               int end, int flush, const char *fmt, ...);
 
 void fs_logger_raw(const char *fmt, ...);
 

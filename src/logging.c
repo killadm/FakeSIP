@@ -56,7 +56,7 @@ void fs_logger_cleanup(void)
 
 
 void fs_logger(const char *funcname, const char *filename, unsigned long line,
-               int end, const char *fmt, ...)
+               int end, int flush, const char *fmt, ...)
 {
     va_list args;
     time_t t;
@@ -77,7 +77,9 @@ void fs_logger(const char *funcname, const char *filename, unsigned long line,
         fprintf(g_ctx.logfp, "%19s [%13s:%03lu]     at %s()\n", time_buff,
                 filename, line, funcname);
     }
-    fflush(g_ctx.logfp);
+    if (flush || g_ctx.logfp == stderr) {
+        fflush(g_ctx.logfp);
+    }
 }
 
 
