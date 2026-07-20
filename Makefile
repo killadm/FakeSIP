@@ -28,7 +28,7 @@ ifeq ($(DEBUG), 1)
 	override CFLAGS += -O0 -g3 -fsanitize=address,leak,undefined
 	override LDFLAGS += -fsanitize=address,leak,undefined
 else
-	override CFLAGS += -O3
+	override CFLAGS += -Os
 endif
 
 all: $(FAKESIP)
