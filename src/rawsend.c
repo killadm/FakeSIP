@@ -373,7 +373,7 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
             return -1;
         }
     } else {
-        E("ERROR: unknown ethertype 0x%04x");
+        E("ERROR: unknown ethertype 0x%04x", ethertype);
         return -1;
     }
 
