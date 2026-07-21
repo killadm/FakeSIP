@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -38,59 +39,78 @@ struct strbuf {
     size_t cap;
 };
 
+#define SB_CHUNK_SIZE 4096
+
+static int sb_reserve(struct strbuf *sb, size_t min_cap)
+{
+    char *new_data;
+    size_t new_cap;
+
+    if (min_cap <= sb->cap) {
+        return 0;
+    }
+
+    new_cap = sb->cap ? sb->cap : SB_CHUNK_SIZE;
+    while (new_cap < min_cap) {
+        if (new_cap > (size_t) -1 / 2) {
+            new_cap = min_cap;
+            break;
+        }
+        new_cap *= 2;
+    }
+
+    new_data = realloc(sb->data, new_cap);
+    if (!new_data) {
+        E("ERROR: realloc(): %s", strerror(errno));
+        return -1;
+    }
+
+    sb->data = new_data;
+    sb->cap = new_cap;
+
+    return 0;
+}
+
 static int sb_append(struct strbuf *sb, const char *fmt, ...)
 {
     int len;
     va_list args;
-    char *new_data;
-    size_t new_len, new_cap;
+    size_t avail, add_len;
 
-    va_start(args, fmt);
-    len = vsnprintf(NULL, 0, fmt, args);
-    va_end(args);
-
-    if (len < 0) {
-        E("ERROR: vsnprintf(): %s", "failure");
-        return -1;
-    }
-
-    if ((size_t) len > (size_t) -1 - sb->len - 1) {
+    if (sb->len > (size_t) -1 - SB_CHUNK_SIZE) {
         E("ERROR: %s", strerror(ENOMEM));
         return -1;
     }
 
-    new_len = sb->len + len;
-    if (new_len + 1 > sb->cap) {
-        new_cap = sb->cap ? sb->cap : 4096;
-        while (new_len + 1 > new_cap) {
-            if (new_cap > (size_t) -1 / 2) {
-                E("ERROR: %s", strerror(ENOMEM));
-                return -1;
-            }
-            new_cap *= 2;
-        }
-
-        new_data = realloc(sb->data, new_cap);
-        if (!new_data) {
-            E("ERROR: realloc(): %s", strerror(errno));
-            return -1;
-        }
-
-        sb->data = new_data;
-        sb->cap = new_cap;
-    }
-
-    va_start(args, fmt);
-    len = vsnprintf(sb->data + sb->len, sb->cap - sb->len, fmt, args);
-    va_end(args);
-    if (len < 0 || (size_t) len != new_len - sb->len) {
-        E("ERROR: vsnprintf(): %s", "failure");
+    if (sb_reserve(sb, sb->len + SB_CHUNK_SIZE) < 0) {
         return -1;
     }
 
-    sb->len = new_len;
+    for (;;) {
+        avail = sb->cap - sb->len;
 
-    return 0;
+        va_start(args, fmt);
+        len = vsnprintf(sb->data + sb->len, avail, fmt, args);
+        va_end(args);
+        if (len < 0) {
+            E("ERROR: vsnprintf(): %s", "failure");
+            return -1;
+        }
+
+        add_len = (size_t) len;
+        if (add_len < avail) {
+            sb->len += add_len;
+            return 0;
+        }
+
+        if (add_len > (size_t) -1 - sb->len - 1) {
+            E("ERROR: %s", strerror(ENOMEM));
+            return -1;
+        }
+        if (sb_reserve(sb, sb->len + add_len + 1) < 0) {
+            return -1;
+        }
+    }
 }
 
 
