@@ -29,6 +29,7 @@
 
 #include "logging.h"
 #include "globvar.h"
+#include "rng.h"
 
 #define BUFFLEN 1200
 #define SET_BE16(a, u16)         \
@@ -78,7 +79,7 @@ static int make_sip_invite(uint8_t *buffer, size_t *len, char *sip_uri)
     unsigned long rand_ul[5], content_length;
 
     for (i = 0; i < 5; i++) {
-        rand_ul[i] = rand() * (ULONG_MAX / RAND_MAX);
+        rand_ul[i] = fs_rng_ulong();
     }
 
     if (sip_uri) {
@@ -89,7 +90,8 @@ static int make_sip_invite(uint8_t *buffer, size_t *len, char *sip_uri)
         }
     } else {
         len_ = snprintf(sip_uri_random, sizeof(sip_uri_random),
-                        "sip:user@203.0.113.%d", rand() % UINT8_MAX);
+                        "sip:user@203.0.113.%d",
+                        (int) fs_rng_bounded(UINT8_MAX));
         if (len_ < 0 || (size_t) len_ >= sizeof(sip_uri_random)) {
             E("ERROR: snprintf(): %s", "failure");
             return -1;
@@ -98,7 +100,8 @@ static int make_sip_invite(uint8_t *buffer, size_t *len, char *sip_uri)
     }
     username = sip_uri + 4;
 
-    len_ = snprintf(local, sizeof(local), "198.51.100.%d", rand() % UINT8_MAX);
+    len_ = snprintf(local, sizeof(local), "198.51.100.%d",
+                    (int) fs_rng_bounded(UINT8_MAX));
     if (len_ < 0 || (size_t) len_ >= sizeof(local)) {
         E("ERROR: snprintf(): %s", "failure");
         return -1;

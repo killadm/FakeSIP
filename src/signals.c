@@ -31,6 +31,8 @@
 
 #include "logging.h"
 
+#define PIDFILE_PATH "/var/run/fakesip.pid"
+
 static volatile sig_atomic_t exit_requested = 0;
 
 static void signal_handler(int sig)
@@ -92,6 +94,210 @@ int fs_signal_exit_requested(void)
 }
 
 
+static int read_proc_comm(pid_t pid, char *buf, size_t len)
+{
+    FILE *fp;
+    char path[PATH_MAX];
+    char *newline;
+    int res;
+
+    if (!pid) {
+        res = snprintf(path, sizeof(path), "/proc/self/comm");
+    } else {
+        res = snprintf(path, sizeof(path), "/proc/%llu/comm",
+                       (unsigned long long) pid);
+    }
+    if (res < 0 || (size_t) res >= sizeof(path)) {
+        return -1;
+    }
+
+    fp = fopen(path, "r");
+    if (!fp) {
+        return -1;
+    }
+
+    if (!fgets(buf, len, fp)) {
+        fclose(fp);
+        return -1;
+    }
+    fclose(fp);
+
+    newline = strchr(buf, '\n');
+    if (newline) {
+        *newline = 0;
+    }
+
+    return 0;
+}
+
+
+static int pid_matches_self_comm(pid_t pid)
+{
+    char self_comm[64], proc_comm[64];
+
+    if (read_proc_comm(0, self_comm, sizeof(self_comm)) < 0 ||
+        read_proc_comm(pid, proc_comm, sizeof(proc_comm)) < 0) {
+        return 0;
+    }
+
+    return strcmp(self_comm, proc_comm) == 0;
+}
+
+
+static int read_pidfile(pid_t *pid)
+{
+    FILE *fp;
+    char buf[64];
+    char *end;
+    unsigned long long value;
+
+    fp = fopen(PIDFILE_PATH, "r");
+    if (!fp) {
+        if (errno == ENOENT) {
+            return 1;
+        }
+        E("ERROR: fopen(): %s: %s", PIDFILE_PATH, strerror(errno));
+        return -1;
+    }
+
+    if (!fgets(buf, sizeof(buf), fp)) {
+        fclose(fp);
+        return 1;
+    }
+    fclose(fp);
+
+    errno = 0;
+    value = strtoull(buf, &end, 10);
+    if (errno || end == buf || value <= 1 || value > INT_MAX) {
+        return 1;
+    }
+
+    *pid = (pid_t) value;
+    return 0;
+}
+
+
+static int process_exists(pid_t pid)
+{
+    if (kill(pid, 0) == 0) {
+        return 1;
+    }
+
+    if (errno == EPERM) {
+        return 1;
+    }
+
+    return 0;
+}
+
+
+static void unlink_pidfile(void)
+{
+    if (unlink(PIDFILE_PATH) < 0 && errno != ENOENT) {
+        E("WARNING: unlink(): %s: %s", PIDFILE_PATH, strerror(errno));
+    }
+}
+
+
+int fs_pidfile_create(void)
+{
+    FILE *fp;
+    pid_t pid;
+    int res;
+
+    res = read_pidfile(&pid);
+    if (res < 0) {
+        return -1;
+    }
+    if (!res) {
+        if (pid != getpid() && process_exists(pid) &&
+            pid_matches_self_comm(pid)) {
+            E("ERROR: another FakeSIP process is running: pid %llu",
+              (unsigned long long) pid);
+            return -1;
+        }
+        unlink_pidfile();
+    }
+
+    fp = fopen(PIDFILE_PATH, "w");
+    if (!fp) {
+        E("ERROR: fopen(): %s: %s", PIDFILE_PATH, strerror(errno));
+        return -1;
+    }
+
+    if (fprintf(fp, "%llu\n", (unsigned long long) getpid()) < 0) {
+        E("ERROR: fprintf(): %s", strerror(errno));
+        fclose(fp);
+        unlink_pidfile();
+        return -1;
+    }
+
+    if (fclose(fp) < 0) {
+        E("ERROR: fclose(): %s: %s", PIDFILE_PATH, strerror(errno));
+        unlink_pidfile();
+        return -1;
+    }
+
+    return 0;
+}
+
+
+void fs_pidfile_remove(void)
+{
+    pid_t pid;
+
+    if (read_pidfile(&pid) == 0 && pid != getpid()) {
+        return;
+    }
+
+    unlink_pidfile();
+}
+
+
+static int kill_pidfile_process(int signal)
+{
+    int res;
+    pid_t pid, self_pid;
+
+    self_pid = getpid();
+
+    res = read_pidfile(&pid);
+    if (res != 0) {
+        return -1;
+    }
+
+    if (pid == self_pid) {
+        if (signal) {
+            unlink_pidfile();
+        }
+        return -1;
+    }
+
+    if (pid <= 1) {
+        unlink_pidfile();
+        return -1;
+    }
+
+    if (!process_exists(pid)) {
+        unlink_pidfile();
+        return -1;
+    }
+
+    if (!pid_matches_self_comm(pid)) {
+        unlink_pidfile();
+        return -1;
+    }
+
+    if (signal && kill(pid, signal) < 0) {
+        E("ERROR: kill(): %llu: %s", (unsigned long long) pid,
+          strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
+
 int fs_kill_running(int signal)
 {
     int res, matched, err;
@@ -102,6 +308,11 @@ int fs_kill_running(int signal)
     char self_path[PATH_MAX], proc_path[PATH_MAX], exe_path[PATH_MAX];
 
     self_pid = getpid();
+
+    res = kill_pidfile_process(signal);
+    if (res == 0) {
+        return 0;
+    }
 
     len = readlink("/proc/self/exe", self_path, sizeof(self_path));
     if (len < 0 || (size_t) len >= sizeof(self_path)) {

@@ -21,6 +21,7 @@
 #include "nfqueue.h"
 
 #include <errno.h>
+#include <poll.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,7 +46,9 @@ static struct nfq_handle *h = NULL;
 static struct nfq_q_handle *qh = NULL;
 
 /* FakeSIP only inspects IP/UDP headers and never modifies queued packets. */
-#define FS_NFQ_COPY_RANGE 128
+#define FS_NFQ_COPY_RANGE      128
+#define FS_NFQ_POLL_TIMEOUT_MS 5000
+#define FS_NFQ_RCVBUF_SIZE     (2 * 1024 * 1024)
 
 static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                     struct nfq_data *nfa, void *data)
@@ -181,6 +184,14 @@ int fs_nfq_setup(void)
         goto destroy_queue;
     }
 
+#ifdef NFQA_CFG_F_GSO
+    res = nfq_set_queue_flags(qh, NFQA_CFG_F_GSO, NFQA_CFG_F_GSO);
+    if (res < 0) {
+        E("WARNING: nfq_set_queue_flags(): NFQA_CFG_F_GSO: %s",
+          strerror(errno));
+    }
+#endif
+
     fd = nfq_fd(h);
 
     opt_len = sizeof(opt);
@@ -190,8 +201,8 @@ int fs_nfq_setup(void)
         goto destroy_queue;
     }
 
-    if (opt < 1048576 /* 1 MB */) {
-        opt = 1048576;
+    if (opt < FS_NFQ_RCVBUF_SIZE) {
+        opt = FS_NFQ_RCVBUF_SIZE;
         res = setsockopt(fd, SOL_SOCKET, SO_RCVBUFFORCE, &opt, sizeof(opt));
         if (res < 0) {
             E("WARNING: setsockopt(): SO_RCVBUFFORCE: %s", strerror(errno));
@@ -241,6 +252,7 @@ int fs_nfq_loop(void)
 {
     static const size_t buffsize = UINT16_MAX;
 
+    struct pollfd pfd;
     int res, ret, err_cnt, transient_err_logged;
     ssize_t recv_len;
     char *buff;
@@ -261,7 +273,30 @@ int fs_nfq_loop(void)
             goto free_buff;
         }
 
-        recv_len = recv(fd, buff, buffsize, 0);
+        pfd.fd = fd;
+        pfd.events = POLLIN;
+        pfd.revents = 0;
+        res = poll(&pfd, 1, FS_NFQ_POLL_TIMEOUT_MS);
+        if (res < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            err_cnt++;
+            E("ERROR: poll(): %s", strerror(errno));
+            continue;
+        }
+        if (!res) {
+            continue;
+        }
+        if (!(pfd.revents & POLLIN)) {
+            if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+                err_cnt++;
+                E("ERROR: nfqueue socket poll(): revents=0x%x", pfd.revents);
+            }
+            continue;
+        }
+
+        recv_len = recv(fd, buff, buffsize, MSG_DONTWAIT);
         if (recv_len < 0) {
             switch (errno) {
                 case EINTR:

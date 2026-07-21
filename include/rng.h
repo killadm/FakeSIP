@@ -1,5 +1,5 @@
 /*
- * signals.h - FakeSIP: https://github.com/MikeWang000000/FakeSIP
+ * rng.h - FakeSIP: https://github.com/MikeWang000000/FakeSIP
  *
  * Copyright (C) 2025  MikeWang000000
  *
@@ -17,17 +17,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef FS_SIGNALS_H
-#define FS_SIGNALS_H
+#ifndef FS_RNG_H
+#define FS_RNG_H
 
-int fs_signal_setup(void);
+#include <stdint.h>
 
-int fs_signal_exit_requested(void);
+uint32_t fs_rng_u32(void);
 
-int fs_pidfile_create(void);
+unsigned long fs_rng_ulong(void);
 
-void fs_pidfile_remove(void);
+uint32_t fs_rng_bounded(uint32_t bound);
 
-int fs_kill_running(int signal);
-
-#endif /* FS_SIGNALS_H */
+#endif /* FS_RNG_H */

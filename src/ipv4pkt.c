@@ -22,7 +22,6 @@
 
 #include <errno.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
@@ -32,6 +31,7 @@
 
 #include "globvar.h"
 #include "logging.h"
+#include "rng.h"
 
 int fs_pkt4_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
                   struct sockaddr *daddr, uint8_t *ttl,
@@ -131,7 +131,7 @@ int fs_pkt4_make(uint8_t *buffer, size_t buffer_size, struct sockaddr *saddr,
     iph->ihl = sizeof(*iph) / 4;
     iph->tos = 0;
     iph->tot_len = htons(pkt_len);
-    iph->id = ((rand() & 0xff) << 8) | (rand() & 0xff);
+    iph->id = htons((uint16_t) fs_rng_u32());
     iph->frag_off = htons(1 << 14 /* DF */);
     iph->ttl = ttl;
     iph->protocol = IPPROTO_UDP;

@@ -31,7 +31,6 @@
 #include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <linux/netfilter.h>
-#include <libnetfilter_queue/libnetfilter_queue_udp.h>
 
 #include "globvar.h"
 #include "filter.h"
@@ -41,11 +40,13 @@
 #include "payload.h"
 #include "srcinfo.h"
 
-#define NO_SNAT   0
-#define NEED_SNAT 1
+#define NO_SNAT          0
+#define NEED_SNAT        1
+#define SEND_BUFFER_SIZE 1600
 
 static uint8_t *payload = NULL;
 static size_t payload_len = 0;
+static uint8_t send_buffer[SEND_BUFFER_SIZE] __attribute__((aligned));
 static int sockfd = -1;
 static int sock4fd = -1;
 static int sock4if = -1;
@@ -147,6 +148,9 @@ static int bind_iface(int fd, int ifindex)
 }
 
 
+static int fake_send_error_is_transient(int err);
+
+
 static int sendto_snat(struct sockaddr_ll *sll, struct sockaddr *daddr,
                        uint8_t *pkt_buff, int pkt_len)
 {
@@ -183,12 +187,29 @@ static int sendto_snat(struct sockaddr_ll *sll, struct sockaddr *daddr,
         return -1;
     }
 
-    nbytes = sendto(fd, pkt_buff, pkt_len, 0, daddr, daddrlen);
-    if (nbytes < 0 && errno != EPERM) {
+    nbytes = sendto(fd, pkt_buff, pkt_len, MSG_DONTWAIT, daddr, daddrlen);
+    if (nbytes < 0) {
+        if (fake_send_error_is_transient(errno)) {
+            return 0;
+        }
         E("ERROR: sendto(): %s", strerror(errno));
         return -1;
     }
 
+    return 0;
+}
+
+
+static int fake_send_error_is_transient(int err)
+{
+    if (err == EPERM || err == EAGAIN || err == ENOBUFS) {
+        return 1;
+    }
+#ifdef EWOULDBLOCK
+    if (err == EWOULDBLOCK) {
+        return 1;
+    }
+#endif
     return 0;
 }
 
@@ -199,18 +220,17 @@ static int send_payload(struct sockaddr_ll *sll, struct sockaddr *saddr,
 {
     int pkt_len;
     ssize_t nbytes;
-    uint8_t pkt_buff[1600] __attribute__((aligned));
 
     if (daddr->sa_family == AF_INET) {
-        pkt_len = fs_pkt4_make(pkt_buff, sizeof(pkt_buff), saddr, daddr, ttl,
-                               sport_be, dport_be, payload, payload_len);
+        pkt_len = fs_pkt4_make(send_buffer, sizeof(send_buffer), saddr, daddr,
+                               ttl, sport_be, dport_be, payload, payload_len);
         if (pkt_len < 0) {
             E(T(fs_pkt4_make));
             return -1;
         }
     } else if (daddr->sa_family == AF_INET6) {
-        pkt_len = fs_pkt6_make(pkt_buff, sizeof(pkt_buff), saddr, daddr, ttl,
-                               sport_be, dport_be, payload, payload_len);
+        pkt_len = fs_pkt6_make(send_buffer, sizeof(send_buffer), saddr, daddr,
+                               ttl, sport_be, dport_be, payload, payload_len);
         if (pkt_len < 0) {
             E(T(fs_pkt6_make));
             return -1;
@@ -221,15 +241,18 @@ static int send_payload(struct sockaddr_ll *sll, struct sockaddr *saddr,
     }
 
     if (need_snat) {
-        nbytes = sendto_snat(sll, daddr, pkt_buff, pkt_len);
+        nbytes = sendto_snat(sll, daddr, send_buffer, pkt_len);
         if (nbytes < 0) {
             E(T(sendto_snat));
             return -1;
         }
     } else {
-        nbytes = sendto(sockfd, pkt_buff, pkt_len, 0, (struct sockaddr *) sll,
-                        sizeof(*sll));
+        nbytes = sendto(sockfd, send_buffer, pkt_len, MSG_DONTWAIT,
+                        (struct sockaddr *) sll, sizeof(*sll));
         if (nbytes < 0) {
+            if (fake_send_error_is_transient(errno)) {
+                return 0;
+            }
             E("ERROR: sendto(): %s", strerror(errno));
             return -1;
         }
@@ -393,6 +416,11 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
             Inbound UDP packet.
         */
         sll->sll_pkttype = 0;
+
+        res = fs_srcinfo_put(saddr, src_ttl, sll->sll_addr);
+        if (res < 0) {
+            E(T(fs_srcinfo_put));
+        }
 
         if (!g_ctx.outbound) {
             E_INFO("%s:%u ===UDP(~)===> %s:%u", src_ip_str,

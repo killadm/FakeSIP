@@ -27,7 +27,6 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 #include <net/if.h>
 #include <sys/resource.h>
@@ -414,8 +413,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    srand(time(NULL));
-
     res = fs_logger_setup();
     if (res < 0) {
         EE(T(fs_logger_setup));
@@ -430,10 +427,16 @@ int main(int argc, char *argv[])
     E("Home page: https://github.com/MikeWang000000/FakeSIP");
     E("");
 
+    res = fs_pidfile_create();
+    if (res < 0) {
+        EE(T(fs_pidfile_create));
+        goto cleanup_logger;
+    }
+
     res = fs_filter_setup();
     if (res < 0) {
         EE(T(fs_filter_setup));
-        goto cleanup_logger;
+        goto cleanup_pidfile;
     }
 
     res = fs_payload_setup();
@@ -531,6 +534,9 @@ cleanup_payload:
 
 cleanup_filter:
     fs_filter_cleanup();
+
+cleanup_pidfile:
+    fs_pidfile_remove();
 
 cleanup_logger:
     fs_logger_cleanup();
