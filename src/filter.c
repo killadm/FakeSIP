@@ -169,9 +169,8 @@ static int append_ipv4(struct fs_ipv4_net **arr, size_t *cnt, size_t *cap,
 }
 
 
-static int append_ipv6(struct fs_ipv6_net **arr, size_t *cnt,
-                       size_t *cap, const struct in6_addr *addr,
-                       uint8_t prefix)
+static int append_ipv6(struct fs_ipv6_net **arr, size_t *cnt, size_t *cap,
+                       const struct in6_addr *addr, uint8_t prefix)
 {
     struct fs_ipv6_net *new_arr;
 
@@ -476,8 +475,7 @@ static int ipv4_range_cmp(const void *a, const void *b)
 
 
 static int build_ipv4_ranges(const struct fs_ipv4_net *nets, size_t nets_cnt,
-                             struct fs_ipv4_range **ranges,
-                             size_t *ranges_cnt)
+                             struct fs_ipv4_range **ranges, size_t *ranges_cnt)
 {
     struct fs_ipv4_range *new_ranges;
     size_t i, out;
@@ -574,8 +572,7 @@ static int ipv6_range_cmp(const void *a, const void *b)
 
 
 static int build_ipv6_ranges(const struct fs_ipv6_net *nets, size_t nets_cnt,
-                             struct fs_ipv6_range **ranges,
-                             size_t *ranges_cnt)
+                             struct fs_ipv6_range **ranges, size_t *ranges_cnt)
 {
     struct fs_ipv6_range *new_ranges;
     size_t i, out;
@@ -626,10 +623,9 @@ static int build_ipv6_ranges(const struct fs_ipv6_net *nets, size_t nets_cnt,
 
 static int build_match_ranges(void)
 {
-    /*
-        Keep parsed CIDRs unchanged for firewall rule generation. The normalized
-        interval copies below are only used for fast per-packet matching.
-    */
+    /* Keep parsed CIDRs unchanged for firewall rule generation. */
+    /* The normalized interval copies are only used for fast packet matching.
+     */
     if (build_ipv4_ranges(g_ctx.filter.allow4, g_ctx.filter.allow4_cnt,
                           &allow4_ranges, &allow4_ranges_cnt) < 0 ||
         build_ipv4_ranges(g_ctx.filter.deny4, g_ctx.filter.deny4_cnt,

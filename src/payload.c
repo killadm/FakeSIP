@@ -43,16 +43,16 @@ struct payload_node {
     struct payload_node *next;
 };
 
+/*
+    Media port 0 marks the stream inactive. Linux SIP conntrack skips RTP
+
+ * expectations for it, avoiding expectation table pressure on routers.
+*/
 static const char *sdp_fmt = "v=0\r\n"
                              "o=Admin %lu %lu IN IP4 %s\r\n"
                              "s=-\r\n"
                              "c=IN IP4 %s\r\n"
                              "t=0 0\r\n"
-                             /*
-                              * Media port 0 marks the stream inactive. Linux
-                              * SIP conntrack skips RTP expectations for it,
-                              * avoiding expectation table pressure on routers.
-                              */
                              "m=audio 0 RTP/AVP 0\r\n"
                              "a=inactive\r\n"
                              "a=rtpmap:0 PCMU/8000\r\n";
