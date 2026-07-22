@@ -303,12 +303,15 @@ int fs_nfq_loop(void)
             continue;
         }
         if (!res) {
+            err_cnt = 0;
             continue;
         }
         if (!(pfd.revents & POLLIN)) {
             if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
                 err_cnt++;
                 E("ERROR: nfqueue socket poll(): revents=0x%x", pfd.revents);
+            } else {
+                err_cnt = 0;
             }
             continue;
         }
@@ -320,6 +323,7 @@ int fs_nfq_loop(void)
                     case EINTR:
                         continue;
                     case EAGAIN:
+                        err_cnt = 0;
                         break;
                     case ETIMEDOUT:
                     case ENOBUFS:
@@ -329,6 +333,7 @@ int fs_nfq_loop(void)
                               strerror(errno));
                             transient_err_logged = 1;
                         }
+                        err_cnt = 0;
                         break;
                     default:
                         err_cnt++;

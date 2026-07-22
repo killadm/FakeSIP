@@ -22,18 +22,21 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/file.h>
 
 #include "logging.h"
 
 #define PIDFILE_PATH "/var/run/fakesip.pid"
 
 static volatile sig_atomic_t exit_requested = 0;
+static int pidfile_fd = -1;
 
 static void signal_handler(int sig)
 {
@@ -201,9 +204,8 @@ static void unlink_pidfile(void)
 
 int fs_pidfile_create(void)
 {
-    FILE *fp;
     pid_t pid;
-    int res;
+    int fd, res;
 
     res = read_pidfile(&pid);
     if (res < 0) {
@@ -219,24 +221,42 @@ int fs_pidfile_create(void)
         unlink_pidfile();
     }
 
-    fp = fopen(PIDFILE_PATH, "w");
-    if (!fp) {
-        E("ERROR: fopen(): %s: %s", PIDFILE_PATH, strerror(errno));
+    fd = open(PIDFILE_PATH, O_RDWR | O_CREAT, 0644);
+    if (fd < 0) {
+        E("ERROR: open(): %s: %s", PIDFILE_PATH, strerror(errno));
         return -1;
     }
 
-    if (fprintf(fp, "%llu\n", (unsigned long long) getpid()) < 0) {
-        E("ERROR: fprintf(): %s", strerror(errno));
-        fclose(fp);
+    if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0) {
+        E("ERROR: fcntl(): FD_CLOEXEC: %s", strerror(errno));
+        close(fd);
+        return -1;
+    }
+
+    if (flock(fd, LOCK_EX | LOCK_NB) < 0) {
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            E("ERROR: another FakeSIP process is running");
+        } else {
+            E("ERROR: flock(): %s: %s", PIDFILE_PATH, strerror(errno));
+        }
+        close(fd);
+        return -1;
+    }
+
+    if (ftruncate(fd, 0) < 0) {
+        E("ERROR: ftruncate(): %s: %s", PIDFILE_PATH, strerror(errno));
+        close(fd);
+        return -1;
+    }
+
+    if (dprintf(fd, "%llu\n", (unsigned long long) getpid()) < 0) {
+        E("ERROR: dprintf(): %s", strerror(errno));
+        close(fd);
         unlink_pidfile();
         return -1;
     }
 
-    if (fclose(fp) < 0) {
-        E("ERROR: fclose(): %s: %s", PIDFILE_PATH, strerror(errno));
-        unlink_pidfile();
-        return -1;
-    }
+    pidfile_fd = fd;
 
     return 0;
 }
@@ -245,6 +265,13 @@ int fs_pidfile_create(void)
 void fs_pidfile_remove(void)
 {
     pid_t pid;
+
+    if (pidfile_fd >= 0) {
+        unlink_pidfile();
+        close(pidfile_fd);
+        pidfile_fd = -1;
+        return;
+    }
 
     if (read_pidfile(&pid) == 0 && pid != getpid()) {
         return;

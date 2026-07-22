@@ -114,12 +114,12 @@ static int terminate_child(pid_t pid, int *status)
         E("ERROR: kill(SIGKILL): %s", strerror(errno));
     }
 
-    do {
-        res = waitpid(pid, status, 0);
-    } while (res < 0 && errno == EINTR);
-
-    if (res < 0 && errno != ECHILD) {
-        E("ERROR: waitpid(): %s", strerror(errno));
+    res = wait_child_for(pid, status, CMD_KILL_GRACE_MS);
+    if (res > 0) {
+        E("ERROR: child process did not exit after SIGKILL: pid %llu",
+          (unsigned long long) pid);
+    } else if (res < 0 && errno != ECHILD) {
+        E("ERROR: wait_child_for(): %s", strerror(errno));
     }
 
     return -1;

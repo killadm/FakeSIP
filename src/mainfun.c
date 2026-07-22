@@ -193,6 +193,23 @@ static int iface_name_valid(const char *name)
 }
 
 
+static int log_path_writable(const char *path)
+{
+    FILE *fp;
+
+    fp = fopen(path, "a");
+    if (!fp) {
+        return -1;
+    }
+
+    if (fclose(fp) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+
 int main(int argc, char *argv[])
 {
     unsigned long long tmp;
@@ -200,6 +217,8 @@ int main(int argc, char *argv[])
     size_t size_tmp;
     size_t plinfo_cap, iface_cap, plinfo_cnt, iface_cnt;
     const char *iface_info, *direction_info, *ipproto_info;
+    struct payload_info *plinfo_tmp;
+    const char **iface_tmp;
     static const struct option longopts[] = {
         {"log-max-size", required_argument, NULL, OPT_LOG_MAX_SIZE},
         {"log-rotate", required_argument, NULL, OPT_LOG_ROTATE},
@@ -231,9 +250,8 @@ int main(int argc, char *argv[])
 
     plinfo_cnt = iface_cnt = 0;
 
-    while (
-        (opt = getopt_long(argc, argv, "0146ab:dfgi:kl:m:n:r:st:u:w:x:y:z",
-                           longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "0146ab:dfgi:kl:m:n:r:st:u:w:x:y:z",
+                              longopts, NULL)) != -1) {
         switch (opt) {
             case '0':
                 g_ctx.inbound = 1;
@@ -266,13 +284,14 @@ int main(int argc, char *argv[])
 
                 plinfo_cnt++;
                 if (plinfo_cnt >= plinfo_cap - 1) {
-                    g_ctx.plinfo = realloc(
+                    plinfo_tmp = realloc(
                         g_ctx.plinfo, 2 * plinfo_cap * sizeof(*g_ctx.plinfo));
-                    if (!g_ctx.plinfo) {
-                        fprintf(stderr, "%s: calloc(): %s.\n", argv[0],
+                    if (!plinfo_tmp) {
+                        fprintf(stderr, "%s: realloc(): %s.\n", argv[0],
                                 strerror(errno));
                         goto free_mem;
                     }
+                    g_ctx.plinfo = plinfo_tmp;
                     memset(&g_ctx.plinfo[plinfo_cap], 0,
                            plinfo_cap * sizeof(*g_ctx.plinfo));
                     plinfo_cap *= 2;
@@ -299,13 +318,14 @@ int main(int argc, char *argv[])
             case 'i':
                 iface_cnt++;
                 if (iface_cnt >= iface_cap - 1) {
-                    g_ctx.iface = realloc(
-                        g_ctx.iface, 2 * iface_cap * sizeof(*g_ctx.iface));
-                    if (!g_ctx.iface) {
-                        fprintf(stderr, "%s: calloc(): %s.\n", argv[0],
+                    iface_tmp = realloc(g_ctx.iface,
+                                        2 * iface_cap * sizeof(*g_ctx.iface));
+                    if (!iface_tmp) {
+                        fprintf(stderr, "%s: realloc(): %s.\n", argv[0],
                                 strerror(errno));
                         goto free_mem;
                     }
+                    g_ctx.iface = iface_tmp;
                     memset(&g_ctx.iface[iface_cap], 0,
                            iface_cap * sizeof(*g_ctx.iface));
                     iface_cap *= 2;
@@ -509,15 +529,23 @@ int main(int argc, char *argv[])
     }
 
     if (g_ctx.daemon) {
+        if (!g_ctx.logpath) {
+            fprintf(stderr,
+                    "%s: daemon mode without -w will discard logs; enabling "
+                    "silent mode.\n",
+                    argv[0]);
+            g_ctx.silent = 1;
+        } else if (log_path_writable(g_ctx.logpath) < 0) {
+            fprintf(stderr, "%s: failed to open log file: %s: %s\n", argv[0],
+                    g_ctx.logpath, strerror(errno));
+            goto free_mem;
+        }
+
         res = daemon(0, 0);
         if (res < 0) {
             fprintf(stderr, "%s: failed to daemonize: %s\n", argv[0],
                     strerror(errno));
             goto free_mem;
-        }
-
-        if (g_ctx.logfp == stderr) {
-            g_ctx.silent = 1;
         }
     }
 
