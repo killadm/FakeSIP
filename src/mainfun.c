@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <net/if.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
@@ -50,6 +51,83 @@
 #ifndef VERSION
 #define VERSION "dev"
 #endif /* VERSION */
+
+enum {
+    OPT_LOG_MAX_SIZE = 256,
+    OPT_LOG_ROTATE
+};
+
+static int parse_size(const char *s, size_t *val)
+{
+    char *end;
+    int shift;
+    unsigned long long tmp;
+
+    if (!s[0]) {
+        return -1;
+    }
+
+    errno = 0;
+    tmp = strtoull(s, &end, 10);
+    if (errno || end == s) {
+        return -1;
+    }
+
+    shift = 0;
+    if (*end) {
+        if (end[1]) {
+            return -1;
+        }
+        switch (*end) {
+            case 'k':
+            case 'K':
+                shift = 10;
+                break;
+            case 'm':
+            case 'M':
+                shift = 20;
+                break;
+            case 'g':
+            case 'G':
+                shift = 30;
+                break;
+            default:
+                return -1;
+        }
+    }
+
+    if (shift && tmp > (unsigned long long) SIZE_MAX >> shift) {
+        return -1;
+    } else if (!shift && tmp > (unsigned long long) SIZE_MAX) {
+        return -1;
+    }
+
+    *val = (size_t) tmp << shift;
+
+    return 0;
+}
+
+
+static int parse_rotate_count(const char *s, uint32_t *val)
+{
+    char *end;
+    unsigned long long tmp;
+
+    if (!s[0]) {
+        return -1;
+    }
+
+    errno = 0;
+    tmp = strtoull(s, &end, 10);
+    if (errno || end == s || *end || tmp > 1000) {
+        return -1;
+    }
+
+    *val = (uint32_t) tmp;
+
+    return 0;
+}
+
 
 static void print_usage(const char *name)
 {
@@ -77,6 +155,11 @@ static void print_usage(const char *name)
         "  -k                 kill the running process\n"
         "  -s                 enable silent mode\n"
         "  -w <file>          write log to <file> instead of stderr\n"
+        "  --log-max-size <size>\n"
+        "                     rotate log when it reaches <size> "
+        "(supports K/M/G, 0 disables)\n"
+        "  --log-rotate <count>\n"
+        "                     number of rotated log files to keep\n"
         "\n"
         "Advanced Options:\n"
         "  -f                 skip firewall rules\n"
@@ -114,8 +197,13 @@ int main(int argc, char *argv[])
 {
     unsigned long long tmp;
     int res, opt, exitcode;
+    size_t size_tmp;
     size_t plinfo_cap, iface_cap, plinfo_cnt, iface_cnt;
     const char *iface_info, *direction_info, *ipproto_info;
+    static const struct option longopts[] = {
+        {"log-max-size", required_argument, NULL, OPT_LOG_MAX_SIZE},
+        {"log-rotate", required_argument, NULL, OPT_LOG_ROTATE},
+        {NULL, 0, NULL, 0}};
 
     exitcode = EXIT_FAILURE;
 
@@ -143,8 +231,9 @@ int main(int argc, char *argv[])
 
     plinfo_cnt = iface_cnt = 0;
 
-    while ((opt = getopt(argc, argv, "0146ab:dfgi:kl:m:n:r:st:u:w:x:y:z")) !=
-           -1) {
+    while (
+        (opt = getopt_long(argc, argv, "0146ab:dfgi:kl:m:n:r:st:u:w:x:y:z",
+                           longopts, NULL)) != -1) {
         switch (opt) {
             case '0':
                 g_ctx.inbound = 1;
@@ -346,6 +435,25 @@ int main(int argc, char *argv[])
 
             case 'z':
                 g_ctx.use_iptables = 1;
+                break;
+
+            case OPT_LOG_MAX_SIZE:
+                if (parse_size(optarg, &size_tmp) < 0) {
+                    fprintf(stderr, "%s: invalid value for --log-max-size.\n",
+                            argv[0]);
+                    print_usage(argv[0]);
+                    goto free_mem;
+                }
+                g_ctx.log_max_size = size_tmp;
+                break;
+
+            case OPT_LOG_ROTATE:
+                if (parse_rotate_count(optarg, &g_ctx.log_rotate_count) < 0) {
+                    fprintf(stderr, "%s: invalid value for --log-rotate.\n",
+                            argv[0]);
+                    print_usage(argv[0]);
+                    goto free_mem;
+                }
                 break;
 
             default:

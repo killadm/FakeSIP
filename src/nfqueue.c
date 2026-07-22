@@ -21,6 +21,7 @@
 #include "nfqueue.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -48,7 +49,8 @@ static struct nfq_q_handle *qh = NULL;
 /* FakeSIP only inspects IP/UDP headers and never modifies queued packets. */
 #define FS_NFQ_COPY_RANGE      128
 #define FS_NFQ_POLL_TIMEOUT_MS 5000
-#define FS_NFQ_RCVBUF_SIZE     (2 * 1024 * 1024)
+#define FS_NFQ_QUEUE_MAXLEN    4096
+#define FS_NFQ_RCVBUF_SIZE     (4 * 1024 * 1024)
 
 static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                     struct nfq_data *nfa, void *data)
@@ -177,6 +179,11 @@ int fs_nfq_setup(void)
         goto destroy_queue;
     }
 
+    res = nfq_set_queue_maxlen(qh, FS_NFQ_QUEUE_MAXLEN);
+    if (res < 0) {
+        E("WARNING: nfq_set_queue_maxlen(): %s", strerror(errno));
+    }
+
     res = nfq_set_queue_flags(qh, NFQA_CFG_F_FAIL_OPEN, NFQA_CFG_F_FAIL_OPEN);
     if (res < 0) {
         E("ERROR: nfq_set_queue_flags(): NFQA_CFG_F_FAIL_OPEN: %s",
@@ -193,6 +200,16 @@ int fs_nfq_setup(void)
 #endif
 
     fd = nfq_fd(h);
+    res = fcntl(fd, F_GETFL, 0);
+    if (res < 0) {
+        E("ERROR: fcntl(): F_GETFL: %s", strerror(errno));
+        goto destroy_queue;
+    }
+
+    if (fcntl(fd, F_SETFL, res | O_NONBLOCK) < 0) {
+        E("ERROR: fcntl(): F_SETFL: %s", strerror(errno));
+        goto destroy_queue;
+    }
 
     opt_len = sizeof(opt);
     res = getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &opt, &opt_len);
@@ -296,38 +313,43 @@ int fs_nfq_loop(void)
             continue;
         }
 
-        recv_len = recv(fd, buff, buffsize, MSG_DONTWAIT);
-        if (recv_len < 0) {
-            switch (errno) {
-                case EINTR:
-                    continue;
-                case EAGAIN:
-                case ETIMEDOUT:
-                case ENOBUFS:
-                    if (!transient_err_logged) {
-                        E("WARNING: recv(): %s; suppressing repeated "
-                          "transient errors",
-                          strerror(errno));
-                        transient_err_logged = 1;
-                    }
-                    continue;
-                default:
-                    err_cnt++;
-                    E("ERROR: recv(): %s", strerror(errno));
-                    ret = -1;
-                    goto free_buff;
+        while (!fs_signal_exit_requested()) {
+            recv_len = recv(fd, buff, buffsize, MSG_DONTWAIT);
+            if (recv_len < 0) {
+                switch (errno) {
+                    case EINTR:
+                        continue;
+                    case EAGAIN:
+                        break;
+                    case ETIMEDOUT:
+                    case ENOBUFS:
+                        if (!transient_err_logged) {
+                            E("WARNING: recv(): %s; suppressing repeated "
+                              "transient errors",
+                              strerror(errno));
+                            transient_err_logged = 1;
+                        }
+                        break;
+                    default:
+                        err_cnt++;
+                        E("ERROR: recv(): %s", strerror(errno));
+                        ret = -1;
+                        goto free_buff;
+                }
+
+                break;
             }
-        }
 
-        res = nfq_handle_packet(h, buff, recv_len);
-        if (res < 0) {
-            err_cnt++;
-            E("ERROR: nfq_handle_packet(): %s", "failure");
-            continue;
-        }
+            res = nfq_handle_packet(h, buff, recv_len);
+            if (res < 0) {
+                err_cnt++;
+                E("ERROR: nfq_handle_packet(): %s", "failure");
+                break;
+            }
 
-        err_cnt = 0;
-        transient_err_logged = 0;
+            err_cnt = 0;
+            transient_err_logged = 0;
+        }
     }
 
     ret = 0;

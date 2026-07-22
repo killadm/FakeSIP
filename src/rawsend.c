@@ -401,7 +401,7 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
         return -1;
     }
 
-    if (fs_filter_has_rules() &&
+    if (g_ctx.skipfw && fs_filter_has_rules() &&
         !fs_filter_match(saddr, daddr, udph->source, udph->dest)) {
         return NF_ACCEPT;
     }

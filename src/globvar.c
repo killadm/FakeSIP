@@ -47,5 +47,7 @@ struct fs_context g_ctx = {.exit = 0,
                            /* -x */ .fwmask = 0,
                            /* -y */ .dynamic_pct = 0,
                            /* -z */ .use_iptables = 0,
+                           .log_max_size = 1024 * 1024,
+                           .log_rotate_count = 3,
 
                            .filter = {0}};

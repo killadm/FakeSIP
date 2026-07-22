@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stddef.h>
 
 #include "filter.h"
 #include "payload.h"
@@ -50,6 +51,8 @@ struct fs_context {
     /* -x */ uint32_t fwmask;
     /* -y */ int dynamic_pct;
     /* -z */ int use_iptables;
+    size_t log_max_size;
+    uint32_t log_rotate_count;
 
     struct fs_filter filter;
 };

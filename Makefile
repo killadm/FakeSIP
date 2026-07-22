@@ -11,8 +11,8 @@ SRCS := $(wildcard $(SRCDIR)/*.c)
 OBJS := $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
 
 override CFLAGS+=-std=c99 -I$(INCLUDEDIR) -frandom-seed=fakesip \
-	-pedantic -Wall -Wextra -Wdate-time
-override LDFLAGS+=-lnetfilter_queue -lnfnetlink -lmnl
+	-pedantic -Wall -Wextra -Wdate-time -pthread
+override LDFLAGS+=-pthread -lnetfilter_queue -lnfnetlink -lmnl
 
 ifdef VERSION
 	override CFLAGS += -DVERSION=\"$(VERSION)\"
